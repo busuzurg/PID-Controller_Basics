@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Pro-Grade Industrial PID & Op-Amp Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 1rem; overflow-x: hidden; }
+        .math-font { font-family: 'Fira Code', monospace; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px; }
+        input[type=range]:focus { outline: none; }
+        
+        input[type=number] { background: #1e293b; border: 1px solid #475569; color: white; border-radius: 6px; padding: 4px; text-align: center; font-family: 'Fira Code', monospace; width: 100%; }
+        input[type=number]:focus { outline: none; border-color: #3b82f6; }
+        .sync-input { width: 70px; padding: 2px; font-size: 0.8rem; }
+        
+        .glass-panel { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; }
+        .btn-preset { background-color: #1e293b; border: 1px solid #475569; color: #cbd5e1; padding: 0.5rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 600; transition: all 0.2s; cursor: pointer; text-align: center; }
+        .btn-preset:hover { background-color: #334155; color: #fff; }
+        .btn-preset.active { background-color: #3b82f6; border-color: #60a5fa; color: #fff; }
+        
+        .error-banner { background-color: rgba(220, 38, 38, 0.95); color: white; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 50; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #f87171; width: 90%; max-width: 600px; }
+        
+        .toggle-checkbox:checked { right: 0; border-color: #3b82f6; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
+        
+        .block-box { fill: #1e293b; stroke: #60a5fa; stroke-width: 2; rx: 4; }
+        .block-text { fill: #f8fafc; font-family: 'Fira Code', monospace; font-size: 14px; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+        .line-arrow { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+        .sum-circle { fill: #1e293b; stroke: #f43f5e; stroke-width: 2; }
+    </style>
+</head>
+<body class="md:p-4 lg:p-6">
+
+    <div class="max-w-7xl mx-auto mb-4 border-b border-slate-700 pb-4">
+        <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Industrial PID & Op-Amp Simulator</h1>
+        <p class="text-slate-400 mt-2 text-xs md:text-sm">Rotate device to landscape for full dashboard view.</p>
+    </div>
+
+    <!-- Responsive Grid -->
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+        
+        <!-- LEFT COLUMN -->
+        <div class="col-span-1 md:col-span-5 lg:col-span-4 space-y-4">
+            
+            <div class="glass-panel p-4 shadow-xl">
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-closed-loop" class="btn-preset active">Closed Loop</button>
+                    <button id="btn-open-loop" class="btn-preset">Open Loop</button>
+                </div>
+            </div>
+
+            <!-- Heavy PID Parameters -->
+            <div class="glass-panel p-4 shadow-xl">
+                <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <h2 class="text-md font-bold text-purple-400">Controller C(s)</h2>
+                    <select id="preset-select" class="bg-slate-800 text-xs text-white border border-slate-600 rounded px-2 py-1 outline-none">
+                        <option value="custom">Custom Tuning...</option>
+                        <option value="P">P-Only</option>
+                        <option value="PI">PI</option>
+                        <option value="PD">PD</option>
+                        <option value="PID">PID</option>
+                        <option value="ZN-Closed">Z-N Aggressive</option>
+                    </select>
+                </div>
+
+                <!-- Structural Toggle (Parallel vs Industrial) -->
+                <div class="mb-4">
+                    <select id="pid-structure" class="w-full bg-slate-900 text-sm font-semibold text-white border border-slate-600 rounded p-2 outline-none">
+                        <option value="industrial">Architecture: Industrial (No D-Kick, Deriv on PV)</option>
+                        <option value="parallel">Architecture: Academic Parallel (Deriv on Error)</option>
+                    </select>
+                </div>
+                
+                <!-- Dynamic Equation Display -->
+                <div class="bg-slate-900 rounded-lg p-2 mb-4 border border-slate-700 flex flex-col items-center justify-center text-xs text-center">
+                    <div class="math-font flex items-center flex-wrap justify-center gap-y-2" id="equation-display">
+                        <!-- Filled by JS based on architecture -->
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between items-center text-xs font-semibold mb-1">
+                            <span class="text-slate-300">Setpoint (SP)</span>
+                            <input type="number" id="sp-num" class="sync-input" value="100" step="10">
+                        </div>
+                        <input type="range" id="sp-slider" min="-500" max="500" step="10" value="100">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center text-xs font-semibold mb-1">
+                            <span class="text-slate-300">Proportional (Kp)</span>
+                            <input type="number" id="kp-num" class="sync-input" value="1.50" step="0.1">
+                        </div>
+                        <input type="range" id="kp-slider" min="0" max="100" step="0.1" value="1.5">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center text-xs font-semibold mb-1">
+                            <span class="text-slate-300">Integral (Ki)</span>
+                            <input type="number" id="ki-num" class="sync-input" value="0.50" step="0.05">
+                        </div>
+                        <input type="range" id="ki-slider" min="0" max="50" step="0.05" value="0.5">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center text-xs font-semibold mb-1">
+                            <span class="text-slate-300">Derivative (Kd)</span>
+                            <input type="number" id="kd-num" class="sync-input" value="0.20" step="0.05">
+                        </div>
+                        <input type="range" id="kd-slider" min="0" max="50" step="0.05" value="0.2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Manager -->
+            <div class="glass-panel p-4 shadow-xl border-l-4 border-l-red-500">
+                <h2 class="text-sm md:text-md font-bold text-red-400 mb-2 border-b border-slate-700 pb-1">Output Manager</h2>
+                <div class="space-y-3 text-xs md:text-sm">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-300">Op-Amp Rails (±Vcc)</span>
+                        <input type="number" id="op-rails" value="250" min="10" max="2000" step="10" class="w-16">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-300">Integrator Anti-Windup</span>
+                        <label class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" id="anti-windup" checked class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="anti-windup" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-600 cursor-pointer"></label>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-300">Diff. Filter (N)</span>
+                        <input type="number" id="diff-filter" value="10" min="1" max="100" step="1" class="w-16">
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-disturbance" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition-colors text-sm border border-slate-500">
+                Inject Step Disturbance (t=5s)
+            </button>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-span-1 md:col-span-7 lg:col-span-8 space-y-4 flex flex-col">
+            
+            <!-- Chart Panel -->
+            <div class="glass-panel p-3 md:p-5 shadow-xl h-[300px] md:h-[400px] flex flex-col relative overflow-hidden">
+                <div id="error-banner" class="error-banner"></div>
+                
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-md md:text-lg font-bold text-white">Oscillogram</h2>
+                    <div class="flex gap-2 md:gap-4 text-[10px] md:text-xs font-semibold">
+                        <div class="flex items-center gap-1"><div class="w-2 h-2 bg-white rounded-full"></div> SP</div>
+                        <div class="flex items-center gap-1"><div class="w-2 h-2 bg-blue-500 rounded-full"></div> PV</div>
+                        <div class="flex items-center gap-1"><div class="w-2 h-2 bg-purple-500 rounded-full"></div> CO</div>
+                    </div>
+                </div>
+                <div class="relative flex-1 w-full h-full">
+                    <canvas id="pidChart"></canvas>
+                </div>
+            </div>
+
+            <!-- DIAGRAM & FUNCTION INPUTS -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                
+                <div class="glass-panel p-4 shadow-xl flex flex-col justify-center items-center">
+                    <svg id="diagram-svg" viewBox="0 0 500 150" class="w-full h-auto max-h-[120px]">
+                        <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" /></marker></defs>
+                        <text x="10" y="60" fill="#fff" font-size="14" font-family="sans-serif">SP</text>
+                        <text x="460" y="60" fill="#fff" font-size="14" font-family="sans-serif">PV</text>
+                        
+                        <rect x="150" y="40" width="80" height="40" class="block-box" />
+                        <text x="190" y="60" class="block-text">C(s)</text>
+
+                        <rect x="310" y="40" width="80" height="40" class="block-box" />
+                        <text x="350" y="60" class="block-text">G(s)</text>
+
+                        <g id="svg-closed-loop">
+                            <circle cx="80" cy="60" r="14" class="sum-circle" />
+                            <text x="80" y="62" class="block-text" font-size="20">∑</text>
+                            <text x="65" y="52" fill="#f43f5e" font-size="14" font-weight="bold">+</text>
+                            <text x="88" y="82" fill="#f43f5e" font-size="14" font-weight="bold">-</text>
+                            <path d="M 35 60 L 60 60" class="line-arrow" />
+                            <path d="M 94 60 L 140 60" class="line-arrow" />
+                            <path d="M 230 60 L 300 60" class="line-arrow" />
+                            <path d="M 390 60 L 450 60" class="line-arrow" />
+                            <path d="M 420 60 L 420 120 L 80 120 L 80 80" class="line-arrow" />
+                        </g>
+
+                        <g id="svg-open-loop" class="hidden">
+                            <path d="M 35 60 L 140 60" class="line-arrow" />
+                            <path d="M 230 60 L 300 60" class="line-arrow" />
+                            <path d="M 390 60 L 450 60" class="line-arrow" />
+                        </g>
+                    </svg>
+                </div>
+
+                <div class="glass-panel p-4 shadow-xl relative border-l-4 border-l-green-500">
+                    <h2 class="text-sm font-bold text-green-400 uppercase tracking-wider mb-2">Plant Function G(s)</h2>
+                    
+                    <div class="bg-slate-900 rounded-lg p-2 mb-3 text-center border border-slate-700 flex flex-col items-center justify-center">
+                        <div class="math-font text-xs flex items-center">
+                            <span class="text-green-400 mr-2 font-bold">G(s) =</span>
+                            <div class="flex flex-col items-center mr-1">
+                                <span class="border-b border-white px-2" id="tf-num">4.0 × 4.0</span>
+                                <span class="px-2" id="tf-den">s² + 3.2s + 4.0</span>
+                            </div>
+                            <div id="tf-delay">× e^(-0.3s)</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-y-3 gap-x-3 text-xs">
+                        <div class="flex justify-between items-center flex-col md:flex-row"><span class="text-slate-300 mb-1 md:mb-0">Gain (K)</span><input type="number" id="plant-k" value="4.0" step="0.5"></div>
+                        <div class="flex justify-between items-center flex-col md:flex-row"><span class="text-slate-300 mb-1 md:mb-0">Nat. Freq (ω_n)</span><input type="number" id="plant-w" value="2.0" step="0.1"></div>
+                        <div class="flex justify-between items-center flex-col md:flex-row"><span class="text-slate-300 mb-1 md:mb-0">Damping (ζ)</span><input type="number" id="plant-z" value="0.8" step="0.1"></div>
+                        <div class="flex justify-between items-center flex-col md:flex-row"><span class="text-slate-300 mb-1 md:mb-0">Dead Time (s)</span><input type="number" id="plant-d" value="0.3" step="0.1" min="0"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sync Inputs & Sliders
+        const spSlider = document.getElementById('sp-slider'), spNum = document.getElementById('sp-num');
+        const kpSlider = document.getElementById('kp-slider'), kpNum = document.getElementById('kp-num');
+        const kiSlider = document.getElementById('ki-slider'), kiNum = document.getElementById('ki-num');
+        const kdSlider = document.getElementById('kd-slider'), kdNum = document.getElementById('kd-num');
+        
+        function syncUI(slider, numBox, sourceIsSlider) {
+            if (sourceIsSlider) numBox.value = slider.value;
+            else slider.value = numBox.value;
+            document.getElementById('preset-select').value = 'custom';
+            runSimulation();
+        }
+
+        spSlider.addEventListener('input', () => syncUI(spSlider, spNum, true)); spNum.addEventListener('input', () => syncUI(spSlider, spNum, false));
+        kpSlider.addEventListener('input', () => syncUI(kpSlider, kpNum, true)); kpNum.addEventListener('input', () => syncUI(kpSlider, kpNum, false));
+        kiSlider.addEventListener('input', () => syncUI(kiSlider, kiNum, true)); kiNum.addEventListener('input', () => syncUI(kiSlider, kiNum, false));
+        kdSlider.addEventListener('input', () => syncUI(kdSlider, kdNum, true)); kdNum.addEventListener('input', () => syncUI(kdSlider, kdNum, false));
+
+        // Output Manager & Plant
+        const opRails = document.getElementById('op-rails'), antiWindup = document.getElementById('anti-windup'), diffFilter = document.getElementById('diff-filter');
+        const plantK = document.getElementById('plant-k'), plantW = document.getElementById('plant-w'), plantZ = document.getElementById('plant-z'), plantD = document.getElementById('plant-d');
+        const tfNum = document.getElementById('tf-num'), tfDen = document.getElementById('tf-den'), tfDelay = document.getElementById('tf-delay');
+        const eqDisplay = document.getElementById('equation-display');
+        const errorBanner = document.getElementById('error-banner');
+        const pidStructure = document.getElementById('pid-structure');
+
+        // Architecture
+        const btnClosed = document.getElementById('btn-closed-loop'), btnOpen = document.getElementById('btn-open-loop');
+        const svgClosed = document.getElementById('svg-closed-loop'), svgOpen = document.getElementById('svg-open-loop');
+        const presetSelect = document.getElementById('preset-select'), btnDisturbance = document.getElementById('btn-disturbance');
+
+        let isClosedLoop = true, injectDisturbance = false;
+
+        const presets = {
+            'P': { kp: 2.0, ki: 0.0, kd: 0.0 }, 'PI': { kp: 1.5, ki: 0.8, kd: 0.0 }, 'PD': { kp: 3.5, ki: 0.0, kd: 2.0 },
+            'PID': { kp: 3.5, ki: 1.2, kd: 2.5 }, 'ZN-Closed': { kp: 5.4, ki: 2.7, kd: 2.7 }
+        };
+
+        btnClosed.addEventListener('click', () => { isClosedLoop = true; btnClosed.classList.add('active'); btnOpen.classList.remove('active'); svgClosed.classList.remove('hidden'); svgOpen.classList.add('hidden'); runSimulation(); });
+        btnOpen.addEventListener('click', () => { isClosedLoop = false; btnOpen.classList.add('active'); btnClosed.classList.remove('active'); svgOpen.classList.remove('hidden'); svgClosed.classList.add('hidden'); runSimulation(); });
+        btnDisturbance.addEventListener('mousedown', () => { injectDisturbance = true; runSimulation(); });
+        btnDisturbance.addEventListener('mouseup', () => { injectDisturbance = false; runSimulation(); });
+        btnDisturbance.addEventListener('mouseleave', () => { injectDisturbance = false; runSimulation(); });
+        btnDisturbance.addEventListener('touchstart', (e) => { e.preventDefault(); injectDisturbance = true; runSimulation(); });
+        btnDisturbance.addEventListener('touchend', (e) => { e.preventDefault(); injectDisturbance = false; runSimulation(); });
+        pidStructure.addEventListener('change', runSimulation);
+
+        presetSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if(val !== 'custom') {
+                kpSlider.value = presets[val].kp; kpNum.value = presets[val].kp;
+                kiSlider.value = presets[val].ki; kiNum.value = presets[val].ki;
+                kdSlider.value = presets[val].kd; kdNum.value = presets[val].kd;
+                if(!isClosedLoop && val !== 'P') btnClosed.click(); else runSimulation();
+            }
+        });
+
+        const extraInputs = [opRails, antiWindup, diffFilter, plantK, plantW, plantZ, plantD];
+        extraInputs.forEach(el => el.addEventListener('input', runSimulation));
+
+        const ctx = document.getElementById('pidChart').getContext('2d');
+        const pidChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [
+                { label: 'SP', borderColor: '#ffffff', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, data: [], tension: 0 },
+                { label: 'PV', borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, pointRadius: 0, data: [], fill: true, tension: 0.2 },
+                { label: 'CO', borderColor: '#a855f7', borderWidth: 1, pointRadius: 0, data: [], tension: 0.2 }
+            ]},
+            options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: false } }, scales: { x: { display: true }, y: { display: true } } }
+        });
+
+        function runSimulation() {
+            const SP = parseFloat(spSlider.value), Kp = parseFloat(kpSlider.value), Ki = parseFloat(kiSlider.value), Kd = parseFloat(kdSlider.value);
+            const vccLimit = parseFloat(opRails.value) || 10, N = parseFloat(diffFilter.value) || 10, useAntiWindup = antiWindup.checked;
+            const K_plant = parseFloat(plantK.value), omega = parseFloat(plantW.value), zeta = parseFloat(plantZ.value), delayTime = Math.max(0, parseFloat(plantD.value) || 0);
+            const struct = pidStructure.value;
+
+            // Render Dynamic C(s) Equation Based on Architecture
+            if (struct === 'industrial') {
+                eqDisplay.innerHTML = `
+                    <span class="text-purple-400 font-bold mr-2">U(s) =</span>
+                    <span class="text-slate-400">[</span>
+                    <span class="text-white">${Kp.toFixed(2)}</span>
+                    <span class="mx-1 text-slate-400">+</span>
+                    <div class="flex flex-col items-center mx-1"><span class="border-b border-white px-1 text-white">${Ki.toFixed(2)}</span><span class="text-slate-400">s</span></div>
+                    <span class="text-slate-400">] E(s)</span>
+                    <span class="mx-2 text-red-400 font-bold">-</span>
+                    <span class="text-slate-400">[</span>
+                    <div class="flex flex-col items-center mx-1"><span class="border-b border-white px-1 text-white">${Kd.toFixed(2)}s</span><span class="text-slate-400">1 + ${(1/N).toFixed(3)}s</span></div>
+                    <span class="text-slate-400">] Y(s)</span>
+                `;
+            } else {
+                eqDisplay.innerHTML = `
+                    <span class="text-purple-400 font-bold mr-2">C(s) =</span>
+                    <span class="text-white">${Kp.toFixed(2)}</span>
+                    <span class="mx-1 text-slate-400">+</span>
+                    <div class="flex flex-col items-center mx-1"><span class="border-b border-white px-1 text-white">${Ki.toFixed(2)}</span><span class="text-slate-400">s</span></div>
+                    <span class="mx-1 text-slate-400">+</span>
+                    <div class="flex flex-col items-center mx-1"><span class="border-b border-white px-1 text-white">${Kd.toFixed(2)}s</span><span class="text-slate-400">1 + ${(1/N).toFixed(3)}s</span></div>
+                `;
+            }
+
+            tfNum.innerText = `${K_plant.toFixed(1)} × ${(omega*omega).toFixed(1)}`;
+            tfDen.innerText = `s² + ${(2*zeta*omega).toFixed(2)}s + ${(omega*omega).toFixed(1)}`;
+            tfDelay.innerText = delayTime > 0 ? `× e^(-${delayTime.toFixed(1)}s)` : '';
+            errorBanner.style.display = 'none';
+
+            if (omega <= 0 || isNaN(omega)) { errorBanner.innerText = "ERROR: Natural Frequency (ω_n) must be > 0. Division by zero detected."; errorBanner.style.display = 'block'; return; }
+            if (zeta < 0) { errorBanner.innerText = "WARNING: Negative damping ratio (ζ < 0) creates positive feedback runaway."; errorBanner.style.display = 'block'; }
+
+            const dt = 0.05, tMax = 20.0;
+            let timeLabels = [], dataSP = [], dataPV = [], dataCO = [];
+            let integral = 0, prev_error = 0, derivative_filtered = 0, prev_y = 0;
+            let y = 0, v = 0, delaySteps = Math.max(1, Math.round(delayTime / dt)), u_buffer = Array(delaySteps).fill(0);
+
+            for (let t = 0; t <= tMax; t += dt) {
+                let error = isClosedLoop ? (SP - y) : 0, control_signal = 0;
+                
+                if (isClosedLoop) {
+                    let p_term = Kp * error;
+                    integral += error * dt;
+                    let i_term = Ki * integral;
+                    
+                    let raw_derivative;
+                    if (struct === 'industrial') {
+                        // Industrial Mode: Derivative on PV (negative feedback) to avoid setpoint kick
+                        raw_derivative = -(y - prev_y) / dt;
+                    } else {
+                        // Academic Parallel Mode: Derivative on Error
+                        raw_derivative = (error - prev_error) / dt;
+                    }
+                    
+                    derivative_filtered += ((raw_derivative - derivative_filtered) * N * dt);
+                    let d_term = Kd * derivative_filtered;
+
+                    control_signal = p_term + i_term + d_term;
+                    prev_error = error;
+                    prev_y = y;
+
+                    if (useAntiWindup && Math.abs(control_signal) >= vccLimit) integral -= error * dt; 
+                } else control_signal = Kp * SP;
+
+                if (control_signal > vccLimit) control_signal = vccLimit;
+                if (control_signal < -vccLimit) control_signal = -vccLimit;
+                u_buffer.push(control_signal); let delayed_u = u_buffer.shift();
+                
+                let external_force = (injectDisturbance && t >= 5.0 && t <= 5.5) ? (SP * 2 || 100) : 0;
+                let accel = (K_plant * delayed_u) - (2 * zeta * omega * v) - (omega * omega * y) + external_force;
+                
+                v += accel * dt; y += v * dt;
+                if(Math.abs(y) > 1e6) y = (y > 0 ? 1e6 : -1e6);
+
+                timeLabels.push(t.toFixed(1)); dataSP.push(SP); dataPV.push(y); dataCO.push(control_signal);
+            }
+
+            pidChart.options.scales.y.min = Math.min(-vccLimit * 1.2, Math.min(...dataPV) * 1.1);
+            pidChart.options.scales.y.max = Math.max(vccLimit * 1.2, Math.max(...dataPV) * 1.1);
+            pidChart.data.labels = timeLabels; pidChart.data.datasets[0].data = dataSP; pidChart.data.datasets[1].data = dataPV; pidChart.data.datasets[2].data = dataCO;
+            pidChart.update();
+        }
+        runSimulation();
+    </script>
+</body>
+</html>

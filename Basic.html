@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1200">
+    <title>Advanced PID & System Transfer Function Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            min-width: 1200px;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .math-font { font-family: 'Fira Code', monospace; }
+
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 3px;
+        }
+        input[type=range]:focus { outline: none; }
+
+        /* Custom Number Input */
+        input[type=number] {
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: white;
+            border-radius: 6px;
+            padding: 4px 8px;
+            width: 70px;
+            text-align: center;
+            font-family: 'Fira Code', monospace;
+        }
+        input[type=number]:focus { outline: none; border-color: #3b82f6; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+        
+        .btn-preset {
+            background-color: #1e293b;
+            border: 1px solid #475569;
+            color: #cbd5e1;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-preset:hover { background-color: #334155; color: #fff; }
+        .btn-preset.active { background-color: #3b82f6; border-color: #60a5fa; color: #fff; }
+
+        .metric-box {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        /* SVG Block Diagram Styling */
+        .block-box { fill: #1e293b; stroke: #60a5fa; stroke-width: 2; rx: 4; }
+        .block-text { fill: #f8fafc; font-family: 'Fira Code', monospace; font-size: 14px; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+        .line-arrow { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+        .sum-circle { fill: #1e293b; stroke: #f43f5e; stroke-width: 2; }
+    </style>
+</head>
+<body>
+
+    <div class="max-w-7xl mx-auto mb-8 border-b border-slate-700 pb-4">
+        <h1 class="text-3xl font-bold text-white tracking-tight">Advanced PID & System Transfer Function Simulator</h1>
+        <p class="text-slate-400 mt-2 text-sm">Visualize system responses, tune PID controllers, and modify the underlying Plant Transfer Function G(s).</p>
+    </div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN: CONTROLS & FEATURES -->
+        <div class="col-span-4 space-y-6">
+            
+            <!-- System Architecture -->
+            <div class="glass-panel p-6 shadow-xl">
+                <h2 class="text-lg font-bold text-blue-400 mb-4 border-b border-slate-700 pb-2">1. System Architecture</h2>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button id="btn-closed-loop" class="btn-preset active">Closed Loop (Feedback)</button>
+                    <button id="btn-open-loop" class="btn-preset">Open Loop (No Feedback)</button>
+                </div>
+            </div>
+
+            <!-- Tuning Methods -->
+            <div class="glass-panel p-6 shadow-xl">
+                <h2 class="text-lg font-bold text-teal-400 mb-4 border-b border-slate-700 pb-2">2. Standard Tuning Methods</h2>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <button class="btn-preset tune-btn" data-type="P">P-Only</button>
+                    <button class="btn-preset tune-btn" data-type="PI">PI</button>
+                    <button class="btn-preset tune-btn" data-type="PD">PD</button>
+                    <button class="btn-preset tune-btn" data-type="PID">PID (Standard)</button>
+                    <button class="btn-preset tune-btn" data-type="ZN-Open">Z-N Open Loop</button>
+                    <button class="btn-preset tune-btn" data-type="ZN-Closed">Z-N Closed Loop</button>
+                </div>
+            </div>
+
+            <!-- PID Parameters -->
+            <div class="glass-panel p-6 shadow-xl">
+                <h2 class="text-lg font-bold text-purple-400 mb-4 border-b border-slate-700 pb-2">3. Controller Variables (C(s))</h2>
+                
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between text-sm font-semibold mb-2"><span class="text-slate-300">Target Setpoint (SP)</span><span id="sp-val" class="text-white">100</span></div>
+                        <input type="range" id="sp-slider" min="0" max="200" step="10" value="100">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm font-semibold mb-2"><span class="text-slate-300">Proportional Gain (Kp)</span><span id="kp-val" class="text-white">1.50</span></div>
+                        <input type="range" id="kp-slider" min="0" max="15" step="0.1" value="1.5">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm font-semibold mb-2"><span class="text-slate-300">Integral Gain (Ki)</span><span id="ki-val" class="text-white">0.50</span></div>
+                        <input type="range" id="ki-slider" min="0" max="5" step="0.05" value="0.5">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm font-semibold mb-2"><span class="text-slate-300">Derivative Gain (Kd)</span><span id="kd-val" class="text-white">0.20</span></div>
+                        <input type="range" id="kd-slider" min="0" max="5" step="0.05" value="0.2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disturbance -->
+            <div class="glass-panel p-6 shadow-xl">
+                <h2 class="text-lg font-bold text-red-400 mb-4 border-b border-slate-700 pb-2">4. Environment Disturbance</h2>
+                <button id="btn-disturbance" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors">
+                    Inject Step Disturbance (t=10s)
+                </button>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: VISUALIZATION, DIAGRAMS & PLANT FUNCTIONS -->
+        <div class="col-span-8 space-y-6 flex flex-col">
+            
+            <!-- Chart Panel -->
+            <div class="glass-panel p-6 shadow-xl h-[400px] flex flex-col">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xl font-bold text-white">System Response Oscillogram</h2>
+                    <div class="flex gap-4 text-sm font-semibold">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 bg-white rounded-full"></div> Setpoint (SP)</div>
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 bg-blue-500 rounded-full"></div> Process Variable (PV)</div>
+                    </div>
+                </div>
+                <div class="relative flex-1 w-full h-full">
+                    <canvas id="pidChart"></canvas>
+                </div>
+            </div>
+
+            <!-- DIAGRAM & FUNCTION INPUTS (NEW SECTION) -->
+            <div class="grid grid-cols-2 gap-6">
+                
+                <!-- SVG Block Diagram -->
+                <div class="glass-panel p-6 shadow-xl flex flex-col justify-center items-center relative">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider absolute top-4 left-4">Control Diagram</h2>
+                    
+                    <svg id="diagram-svg" viewBox="0 0 500 200" class="w-full mt-6">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+                            </marker>
+                        </defs>
+                        
+                        <!-- Common Elements -->
+                        <text x="10" y="80" fill="#fff" font-size="12" font-family="sans-serif">SP(s)</text>
+                        <text x="460" y="80" fill="#fff" font-size="12" font-family="sans-serif">PV(s)</text>
+                        
+                        <!-- PID Controller Block C(s) -->
+                        <rect x="150" y="60" width="80" height="60" class="block-box" />
+                        <text x="190" y="90" class="block-text">C(s)</text>
+                        <text x="190" y="140" fill="#a855f7" font-size="10" font-family="sans-serif" text-anchor="middle">Controller</text>
+
+                        <!-- Plant Block G(s) -->
+                        <rect x="310" y="60" width="80" height="60" class="block-box" />
+                        <text x="350" y="90" class="block-text">G(s)</text>
+                        <text x="350" y="140" fill="#22c55e" font-size="10" font-family="sans-serif" text-anchor="middle">Plant Process</text>
+
+                        <!-- Dynamic Elements (Toggled via JS) -->
+                        <g id="svg-closed-loop">
+                            <!-- Summing Junction -->
+                            <circle cx="80" cy="90" r="15" class="sum-circle" />
+                            <text x="80" y="90" class="block-text" font-size="18">∑</text>
+                            <text x="65" y="85" fill="#f43f5e" font-size="14" font-weight="bold">+</text>
+                            <text x="85" y="115" fill="#f43f5e" font-size="14" font-weight="bold">-</text>
+
+                            <!-- Lines -->
+                            <path d="M 30 90 L 55 90" class="line-arrow" /> <!-- SP to Sum -->
+                            <path d="M 95 90 L 140 90" class="line-arrow" /> <!-- Sum to C(s) -->
+                            <path d="M 230 90 L 300 90" class="line-arrow" /> <!-- C(s) to G(s) -->
+                            <path d="M 390 90 L 450 90" class="line-arrow" /> <!-- G(s) to Output -->
+                            
+                            <!-- Feedback Loop -->
+                            <path d="M 420 90 L 420 170 L 80 170 L 80 115" class="line-arrow" />
+                        </g>
+
+                        <g id="svg-open-loop" class="hidden">
+                            <!-- Direct Lines (No Sum) -->
+                            <path d="M 30 90 L 140 90" class="line-arrow" /> <!-- SP directly to C(s) -->
+                            <path d="M 230 90 L 300 90" class="line-arrow" /> <!-- C(s) to G(s) -->
+                            <path d="M 390 90 L 450 90" class="line-arrow" /> <!-- G(s) to Output -->
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Plant Transfer Function Inputs -->
+                <div class="glass-panel p-6 shadow-xl relative">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Plant Transfer Function G(s)</h2>
+                    
+                    <!-- Dynamic Math Equation Display -->
+                    <div class="bg-slate-900 rounded-lg p-4 mb-4 text-center border border-slate-700 flex flex-col items-center justify-center">
+                        <div class="text-green-400 font-bold mb-1">G(s) = </div>
+                        <div class="math-font text-lg flex items-center">
+                            <div class="flex flex-col items-center mr-2">
+                                <span class="border-b border-white px-2" id="tf-num">4.0 × 4.0</span>
+                                <span class="px-2" id="tf-den">s² + 3.2s + 4.0</span>
+                            </div>
+                            <div id="tf-delay">× e^(-0.3s)</div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Input Controls -->
+                    <div class="grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Plant Gain (K)</span>
+                            <input type="number" id="plant-k" value="4.0" step="0.5">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Nat. Freq (ω_n)</span>
+                            <input type="number" id="plant-w" value="2.0" step="0.1" min="0.1">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Damping (ζ)</span>
+                            <input type="number" id="plant-z" value="0.8" step="0.1" min="0.0">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Dead Time (T_d)</span>
+                            <input type="number" id="plant-d" value="0.3" step="0.1" min="0.0">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="glass-panel p-6 shadow-xl mt-0">
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="metric-box">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Max Overshoot</div>
+                        <div id="metric-overshoot" class="text-2xl font-bold text-white">0.0%</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Rise Time (0-90%)</div>
+                        <div id="metric-rise" class="text-2xl font-bold text-white">0.00s</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Steady State Error</div>
+                        <div id="metric-sse" class="text-2xl font-bold text-white">0.00</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">System Stability</div>
+                        <div id="metric-stable" class="text-2xl font-bold text-green-400">Stable</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements - UI Controllers
+        const spSlider = document.getElementById('sp-slider'), spVal = document.getElementById('sp-val');
+        const kpSlider = document.getElementById('kp-slider'), kpVal = document.getElementById('kp-val');
+        const kiSlider = document.getElementById('ki-slider'), kiVal = document.getElementById('ki-val');
+        const kdSlider = document.getElementById('kd-slider'), kdVal = document.getElementById('kd-val');
+        
+        // DOM Elements - Plant Function Inputs
+        const plantK = document.getElementById('plant-k');
+        const plantW = document.getElementById('plant-w');
+        const plantZ = document.getElementById('plant-z');
+        const plantD = document.getElementById('plant-d');
+        
+        // DOM Elements - Equation Display
+        const tfNum = document.getElementById('tf-num');
+        const tfDen = document.getElementById('tf-den');
+        const tfDelay = document.getElementById('tf-delay');
+
+        // DOM Elements - Architecture & SVG
+        const btnClosed = document.getElementById('btn-closed-loop');
+        const btnOpen = document.getElementById('btn-open-loop');
+        const svgClosed = document.getElementById('svg-closed-loop');
+        const svgOpen = document.getElementById('svg-open-loop');
+        const btnDisturbance = document.getElementById('btn-disturbance');
+
+        // DOM Elements - Metrics
+        const metricOvershoot = document.getElementById('metric-overshoot');
+        const metricRise = document.getElementById('metric-rise');
+        const metricSSE = document.getElementById('metric-sse');
+        const metricStable = document.getElementById('metric-stable');
+
+        // State Variables
+        let isClosedLoop = true;
+        let injectDisturbance = false;
+
+        // Tuning Presets
+        const presets = {
+            'P': { kp: 2.0, ki: 0.0, kd: 0.0 },
+            'PI': { kp: 1.5, ki: 0.8, kd: 0.0 },
+            'PD': { kp: 3.5, ki: 0.0, kd: 2.0 },
+            'PID': { kp: 3.5, ki: 1.2, kd: 2.5 },
+            'ZN-Open': { kp: 2.8, ki: 0.6, kd: 0.0 }, 
+            'ZN-Closed': { kp: 5.4, ki: 2.7, kd: 2.7 } 
+        };
+
+        // Event Listeners: Architecture Toggle (Chart + Diagram)
+        btnClosed.addEventListener('click', () => {
+            isClosedLoop = true;
+            btnClosed.classList.add('active'); btnOpen.classList.remove('active');
+            svgClosed.classList.remove('hidden'); svgOpen.classList.add('hidden');
+            runSimulation();
+        });
+
+        btnOpen.addEventListener('click', () => {
+            isClosedLoop = false;
+            btnOpen.classList.add('active'); btnClosed.classList.remove('active');
+            svgOpen.classList.remove('hidden'); svgClosed.classList.add('hidden');
+            runSimulation();
+        });
+
+        // Event Listeners: Disturbance
+        btnDisturbance.addEventListener('mousedown', () => { injectDisturbance = true; runSimulation(); });
+        btnDisturbance.addEventListener('mouseup', () => { injectDisturbance = false; runSimulation(); });
+        btnDisturbance.addEventListener('mouseleave', () => { injectDisturbance = false; runSimulation(); });
+
+        // Event Listeners: Presets
+        document.querySelectorAll('.tune-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tune-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                const type = e.target.getAttribute('data-type');
+                kpSlider.value = presets[type].kp;
+                kiSlider.value = presets[type].ki;
+                kdSlider.value = presets[type].kd;
+                
+                if(!isClosedLoop && type !== 'P') btnClosed.click(); else runSimulation();
+            });
+        });
+
+        // Event Listeners: Inputs Trigger Re-simulation
+        const allInputs = [spSlider, kpSlider, kiSlider, kdSlider, plantK, plantW, plantZ, plantD];
+        allInputs.forEach(input => input.addEventListener('input', runSimulation));
+
+        // Chart.js Setup
+        const ctx = document.getElementById('pidChart').getContext('2d');
+        const pidChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Setpoint (SP)', borderColor: '#ffffff', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, data: [], tension: 0 },
+                    { label: 'Process Variable (PV)', borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 3, pointRadius: 0, data: [], fill: true, tension: 0.2 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                animation: { duration: 0 }, 
+                interaction: { intersect: false, mode: 'index' },
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { title: { display: true, text: 'Time (seconds)', color: '#94a3b8' }, grid: { color: '#334155' } },
+                    y: { title: { display: true, text: 'Amplitude', color: '#94a3b8' }, grid: { color: '#334155' } }
+                }
+            }
+        });
+
+        // Core Mathematical Simulation Engine
+        function runSimulation() {
+            // Update UI PID Values
+            const SP = parseFloat(spSlider.value);
+            const Kp = parseFloat(kpSlider.value);
+            const Ki = parseFloat(kiSlider.value);
+            const Kd = parseFloat(kdSlider.value);
+            spVal.innerText = SP; kpVal.innerText = Kp.toFixed(2); kiVal.innerText = Ki.toFixed(2); kdVal.innerText = Kd.toFixed(2);
+
+            // Fetch Dynamic Plant Function Parameters
+            const K_plant = parseFloat(plantK.value) || 0;
+            const omega = parseFloat(plantW.value) || 0.1; // Prevent div by 0
+            const zeta = parseFloat(plantZ.value) || 0;
+            const delayTime = parseFloat(plantD.value) || 0;
+
+            // Update Equation UI
+            tfNum.innerText = `${K_plant.toFixed(1)} × ${(omega*omega).toFixed(1)}`;
+            let middleTerm = (2 * zeta * omega).toFixed(2);
+            tfDen.innerText = `s² + ${middleTerm}s + ${(omega*omega).toFixed(1)}`;
+            tfDelay.innerText = delayTime > 0 ? `× e^(-${delayTime.toFixed(1)}s)` : '';
+
+            // Simulation Constants
+            const dt = 0.05; 
+            const tMax = 20.0; 
+            
+            let timeLabels = [], dataSP = [], dataPV = [];
+            let integral = 0, prev_error = 0;
+            let y = 0, v = 0; // State variables (PV, Velocity)
+
+            // Setup Delay Buffer dynamically based on input
+            let delaySteps = Math.max(1, Math.round(delayTime / dt));
+            let u_buffer = Array(delaySteps).fill(0);
+
+            // Metrics tracking
+            let maxPV = 0, riseTime = null, isUnstable = false;
+
+            // Run Euler Integration Loop
+            for (let t = 0; t <= tMax; t += dt) {
+                
+                // 1. Error calculation
+                let error = isClosedLoop ? (SP - y) : 0;
+
+                // 2. PID Algorithm
+                let control_signal = 0;
+                if (isClosedLoop) {
+                    integral += error * dt;
+                    if(integral > 500) integral = 500; if(integral < -500) integral = -500; // Anti-windup
+                    let derivative = (error - prev_error) / dt;
+                    control_signal = (Kp * error) + (Ki * integral) + (Kd * derivative);
+                    prev_error = error;
+                } else {
+                    control_signal = Kp * SP * 0.25; // Open Loop direct throughput
+                }
+
+                if (control_signal > 300) control_signal = 300; if (control_signal < -300) control_signal = -300;
+
+                // 3. Delay Buffer
+                u_buffer.push(control_signal);
+                let delayed_u = u_buffer.shift();
+
+                // 4. Disturbance Injection
+                let external_force = (injectDisturbance && t >= 10.0 && t <= 10.5) ? 150 : 0;
+
+                // 5. Dynamic Plant Physics (2nd Order ODE)
+                let accel = (K_plant * delayed_u) - (2 * zeta * omega * v) - (omega * omega * y) + external_force;
+                v += accel * dt;
+                y += v * dt;
+
+                // 6. Metrics tracking
+                if (y > maxPV) maxPV = y;
+                if (riseTime === null && y >= (SP * 0.9) && SP > 0) riseTime = t;
+                if (Math.abs(y) > (Math.abs(SP) * 5 + 100)) isUnstable = true;
+
+                // 7. Store Data
+                timeLabels.push(t.toFixed(1)); dataSP.push(SP); dataPV.push(y);
+            }
+
+            // Update Metrics UI
+            let steadyStateError = isClosedLoop ? Math.abs(SP - y) : "-";
+            let overshootPercent = (SP > 0 && maxPV > SP && isClosedLoop) ? ((maxPV - SP) / SP) * 100 : 0;
+
+            if (isUnstable) {
+                metricStable.innerText = "UNSTABLE"; metricStable.className = "text-2xl font-bold text-red-500 animate-pulse";
+                metricOvershoot.innerText = "INF"; metricRise.innerText = "-"; metricSSE.innerText = "INF";
+            } else {
+                metricStable.innerText = "Stable"; metricStable.className = "text-2xl font-bold text-green-400";
+                if(!isClosedLoop) {
+                    metricOvershoot.innerText = "-"; metricRise.innerText = "-"; metricSSE.innerText = "-";
+                } else {
+                    metricOvershoot.innerText = overshootPercent.toFixed(1) + "%";
+                    metricRise.innerText = riseTime ? riseTime.toFixed(2) + "s" : ">20s";
+                    metricSSE.innerText = steadyStateError.toFixed(1);
+                }
+            }
+
+            // Push to Chart
+            pidChart.data.labels = timeLabels;
+            pidChart.data.datasets[0].data = dataSP;
+            pidChart.data.datasets[1].data = dataPV;
+            pidChart.update();
+        }
+
+        runSimulation();
+    </script>
+</body>
+</html>
